@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FRA Report Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #0f2645; --blue: #1a5fa8; --teal: #0891b2; --accent: #38bdf8;
+  --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+  --bg: #f0f4f8; --surface: #ffffff; --border: #dce3ed;
+  --text: #1e293b; --muted: #64748b;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.app-header{background:linear-gradient(135deg,var(--navy) 0%,#1a3a6b 100%);color:white;padding:0 32px;display:flex;align-items:center;height:64px;gap:14px;box-shadow:0 2px 12px rgba(0,0,0,.25);position:sticky;top:0;z-index:100}
+.app-header .logo{font-size:1.5rem}
+.app-header h1{font-size:1.15rem;font-weight:700;letter-spacing:-.02em}
+.app-header span{font-size:.8rem;opacity:.6;font-weight:400;margin-left:8px}
+.layout{display:flex;min-height:calc(100vh - 64px)}
+.sidebar{width:230px;background:var(--surface);border-right:1px solid var(--border);padding:24px 12px;flex-shrink:0;position:sticky;top:64px;height:calc(100vh - 64px);overflow-y:auto}
+.sidebar-label{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 10px;margin-bottom:8px}
+.step-btn{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;cursor:pointer;font-size:.855rem;font-weight:500;color:var(--muted);transition:all .15s;width:100%;background:none;border:none;text-align:left;margin-bottom:2px}
+.step-btn:hover{background:var(--bg);color:var(--text)}
+.step-btn.active{background:#dbeafe;color:var(--blue);font-weight:600}
+.step-btn.done{color:var(--success)}
+.step-btn.done .step-icon{background:var(--success);color:white}
+.step-icon{width:22px;height:22px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0;transition:all .15s}
+.step-btn.active .step-icon{background:var(--blue);color:white}
+.api-key-section{margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.api-key-section label{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 10px;display:block;margin-bottom:6px}
+.api-key-input{width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:.78rem;font-family:'DM Mono',monospace;background:#fafcff;color:var(--text)}
+.api-key-input:focus{outline:none;border-color:var(--blue)}
+.api-key-hint{font-size:.7rem;color:var(--muted);padding:4px 10px;line-height:1.5;display:block;margin-top:4px}
+.main{flex:1;padding:28px;max-width:900px}
+.progress-bar{height:3px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-bottom:18px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--teal));border-radius:99px;transition:width .4s ease}
+.card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);margin-bottom:18px}
+.card-header{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.card-header h2{font-size:1rem;font-weight:700;color:var(--navy)}
+.card-body{padding:20px 22px}
+.card-emoji{font-size:1.25rem}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group label{font-size:.8rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.form-group input{padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem;font-family:inherit;transition:border-color .15s,box-shadow .15s;background:#fafcff}
+.form-group input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,95,168,.12);background:white}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-size:.875rem;font-weight:600;font-family:inherit;transition:all .15s;text-decoration:none}
+.btn-primary{background:var(--blue);color:white}
+.btn-primary:hover{background:#1551a0;box-shadow:0 4px 14px rgba(26,95,168,.4)}
+.btn-ghost{background:transparent;color:var(--muted);border:1.5px solid var(--border)}
+.btn-ghost:hover{background:var(--bg);color:var(--text)}
+.btn-success{background:var(--success);color:white}
+.btn-success:hover{background:#059669;box-shadow:0 4px 14px rgba(16,185,129,.4)}
+.btn-teal{background:var(--teal);color:white}
+.btn-teal:hover{background:#0e7490}
+.btn-sm{padding:6px 12px;font-size:.8rem}
+.btn-lg{padding:12px 26px;font-size:1rem}
+.btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none!important}
+.info-box{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 16px;font-size:.85rem;line-height:1.6;margin-bottom:16px;display:flex;gap:10px}
+.info-box.warn{background:#fffbeb;border-color:#fde68a}
+.info-box-icon{font-size:1rem;flex-shrink:0;margin-top:1px}
+/* Map link card */
+.map-link-card{display:flex;align-items:center;gap:12px;padding:12px 16px;background:#f8faff;border:1.5px solid #c7d9f5;border-radius:8px;margin-bottom:14px;flex-wrap:wrap}
+.map-link-card .link-text{flex:1;min-width:180px}
+.map-link-card a{color:var(--blue);font-weight:600;font-size:.88rem;text-decoration:none}
+.map-link-card a:hover{text-decoration:underline}
+.map-link-card small{font-size:.78rem;color:var(--muted);display:block;margin-top:2px}
+/* Postcode status */
+.pc-status{display:none;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:.78rem;font-weight:600;margin-top:6px}
+.pc-status.visible{display:inline-flex}
+.pc-status.ok{background:#d1fae5;color:#065f46}
+.pc-status.err{background:#fee2e2;color:#991b1b}
+.pc-status.loading{background:#dbeafe;color:#1e40af}
+.coord-pill{display:none;gap:12px;padding:5px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:20px;font-size:.78rem;font-family:'DM Mono',monospace;color:var(--teal);margin-top:6px}
+.coord-pill.visible{display:inline-flex}
+/* Upload */
+.upload-area{border:2px dashed var(--border);border-radius:10px;padding:28px 20px;text-align:center;cursor:pointer;transition:all .2s;background:#fafcff;user-select:none}
+.upload-area:hover,.upload-area.drag-over{border-color:var(--blue);background:#f0f7ff}
+.upload-area.uploaded{border-color:var(--success);background:#f0fdf4;border-style:solid}
+.upload-icon{font-size:2.2rem;margin-bottom:8px}
+.upload-title{font-weight:600;font-size:.92rem}
+.upload-hint{font-size:.8rem;color:var(--muted);margin-top:4px}
+.paste-badge{display:inline-flex;align-items:center;gap:5px;background:#ecfeff;border:1px solid #a5f3fc;color:var(--teal);font-size:.75rem;font-weight:600;padding:3px 8px;border-radius:20px;margin-top:8px}
+/* Canvas */
+.canvas-section{margin-top:16px}
+.canvas-wrap{border:1px solid var(--border);border-radius:8px;overflow:hidden;max-width:100%;background:#111}
+canvas{display:block;cursor:crosshair;max-width:100%;width:100%}
+.canvas-toolbar{display:flex;align-items:center;gap:10px;padding:10px 0;flex-wrap:wrap}
+.canvas-hint{font-size:.8rem;color:var(--muted);background:var(--bg);padding:6px 12px;border-radius:6px;border:1px solid var(--border)}
+/* Result */
+.result-panel{margin-top:16px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.result-header{padding:12px 16px;display:flex;align-items:center;gap:8px;font-weight:700;font-size:.95rem}
+.result-low{background:#d1fae5;color:#065f46}
+.result-medium{background:#fef3c7;color:#92400e}
+.result-high{background:#fee2e2;color:#991b1b}
+.result-textarea{width:100%;padding:14px 16px;font-size:.855rem;font-family:'DM Sans',sans-serif;line-height:1.75;color:var(--text);background:white;border:none;resize:vertical;min-height:150px;outline:none;border-top:1px solid var(--border);display:block}
+.result-actions{padding:10px 16px;background:#f8fafc;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.polish-status{font-size:.8rem;color:var(--teal);display:flex;align-items:center;gap:5px}
+.spin{display:inline-block;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Summary */
+.summary-row{display:flex;gap:16px;padding:8px 0;border-bottom:1px solid var(--border);font-size:.875rem}
+.summary-row:last-child{border-bottom:none}
+.summary-label{font-weight:600;color:var(--muted);min-width:160px}
+.step-content{animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.hidden{display:none!important}
+.step-nav{display:flex;justify-content:space-between;margin-top:20px;padding-top:18px;border-top:1px solid var(--border)}
+.instructions-list{padding-left:18px;margin-top:6px}
+.instructions-list li{margin-bottom:4px;font-size:.85rem;line-height:1.5}
+#depthImgPreview{max-width:100%;border-radius:8px;margin-top:12px;display:block}
+.generate-btn-wrap{text-align:center;margin-top:20px}
+.gen-status{margin-top:12px;text-align:center;font-size:.9rem;line-height:1.6}
+kbd{font-family:'DM Mono',monospace;font-size:.78rem;padding:1px 5px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px}
+@media(max-width:700px){.sidebar{display:none}.form-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="logo">🌊</div>
+  <h1>FRA Report Generator <span>Flood Risk Assessment Tool</span></h1>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-label">Steps</div>
+    <button class="step-btn active" id="nav-0" onclick="goToStep(0)"><span class="step-icon" id="icon-0">1</span> Project Info</button>
+    <button class="step-btn" id="nav-1" onclick="goToStep(1)"><span class="step-icon" id="icon-1">2</span> Fluvial / Tidal</button>
+    <button class="step-btn" id="nav-2" onclick="goToStep(2)"><span class="step-icon" id="icon-2">3</span> Surface Water</button>
+    <button class="step-btn" id="nav-3" onclick="goToStep(3)"><span class="step-icon" id="icon-3">4</span> SW Depth Map</button>
+    <button class="step-btn" id="nav-4" onclick="goToStep(4)"><span class="step-icon" id="icon-4">5</span> Reservoirs</button>
+    <button class="step-btn" id="nav-5" onclick="goToStep(5)"><span class="step-icon" id="icon-5">6</span> Generate</button>
+
+    <div class="api-key-section">
+      <label>Claude API Key</label>
+      <input class="api-key-input" type="password" id="apiKey" placeholder="sk-ant-api03-…">
+      <span class="api-key-hint">Required for ✨ AI text polishing.<br>Key stays in your browser only.</span>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+    <!-- ══ STEP 0 ══ -->
+    <div id="step-0" class="step-content">
+      <div class="card">
+        <div class="card-header"><span class="card-emoji">📋</span><h2>Project Information</h2></div>
+        <div class="card-body">
+          <p style="font-size:.875rem;color:var(--muted);margin-bottom:18px">These details will be inserted into your FRA report template.</p>
+          <div class="form-grid">
+            <div class="form-group"><label>Project Name</label><input type="text" id="projectName" placeholder="e.g. Residential Development, 12 Oak Lane"></div>
+            <div class="form-group"><label>Client Name</label><input type="text" id="clientName" placeholder="e.g. ABC Developments Ltd"></div>
+            <div class="form-group"><label>Project Location</label><input type="text" id="projectLocation" placeholder="e.g. 12 Oak Lane, London"></div>
+            <div class="form-group"><label>Project Number</label><input type="text" id="projectNumber" placeholder="e.g. PRJ-2025-001"></div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label>Postcode</label>
+              <input type="text" id="postcode" placeholder="e.g. SW1A 2AA" oninput="onPostcodeChange(this.value)" style="max-width:220px">
+              <span id="pcStatus" class="pc-status"></span>
+              <span id="coordPill" class="coord-pill"><span id="coordE"></span><span id="coordN"></span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-nav"><div></div><button class="btn btn-primary" onclick="nextStep()">Next: Fluvial Map →</button></div>
+    </div>
+
+    <!-- ══ STEP 1 – Fluvial ══ -->
+    <div id="step-1" class="step-content hidden">
+      <div class="card">
+        <div class="card-header"><span class="card-emoji">🌊</span><h2>Fluvial / Tidal Flood Analysis</h2></div>
+        <div class="card-body">
+          <div class="map-link-card">
+            <div class="link-text">
+              <a id="fluvialLink" href="https://flood-map-for-planning.service.gov.uk/map" target="_blank">flood-map-for-planning.service.gov.uk ↗</a>
+              <small>Search postcode → zoom to site → close legend (×) → screenshot</small>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="window.open(document.getElementById('fluvialLink').href,'_blank')">🗺 Open Map</button>
+          </div>
+          <div class="info-box">
+            <span class="info-box-icon">ℹ️</span>
+            <div><strong>Capture the map:</strong>
+              <ol class="instructions-list">
+                <li>Open the map, search your postcode, zoom in, dismiss the legend</li>
+                <li>Screenshot: <kbd>Win+Shift+S</kbd> or <kbd>Cmd+Shift+4</kbd></li>
+                <li><strong>Paste directly</strong> with <kbd>Ctrl+V</kbd> / <kbd>Cmd+V</kbd> — or click/drag below</li>
+                <li>Click to draw site boundary → <strong>double-click</strong> or press <em>Finish</em> to close polygon</li>
+                <li>Right-click to undo the last point</li>
+              </ol>
+            </div>
+          </div>
+          <div id="fluvialUpload" class="upload-area"
+               onclick="document.getElementById('fluvialFile').click()"
+               ondragover="dragOver(event,'fluvial')" ondragleave="dragLeave(event,'fluvial')" ondrop="dropOn(event,'fluvial')">
+            <input type="file" id="fluvialFile" accept="image/*" style="display:none" onchange="loadMapFile('fluvial',this)">
+            <div class="upload-icon">📷</div>
+            <div class="upload-title">Click to upload — or drag & drop</div>
+            <div class="upload-hint">PNG / JPG screenshot</div>
+            <div class="paste-badge">⌨️ Ctrl+V to paste anywhere on this step</div>
+          </div>
+          <div id="fluvialCanvasArea" class="canvas-section hidden">
+            <div class="canvas-wrap"><canvas id="fluvialCanvas"></canvas></div>
+            <div class="canvas-toolbar">
+              <span class="canvas-hint">🖱 Click = add point &nbsp;·&nbsp; Dbl-click = finish &nbsp;·&nbsp; Right-click = undo</span>
+              <button class="btn btn-ghost btn-sm" onclick="resetPoly('fluvial')">↺ Reset</button>
+              <button class="btn btn-success btn-sm" onclick="finishPoly('fluvial')">✓ Finish Polygon</button>
+            </div>
+            <div id="fluvialResult" class="hidden"></div>
+          </div>
+        </div>
+      </div>
+      <div class="step-nav"><button class="btn btn-ghost" onclick="prevStep()">← Back</button><button class="btn btn-primary" onclick="nextStep()">Next: Surface Water →</button></div>
+    </div>
+
+    <!-- ══ STEP 2 – Surface Water ══ -->
+    <div id="step-2" class="step-content hidden">
+      <div class="card">
+        <div class="card-header"><span class="card-emoji">💧</span><h2>Surface Water Flood Analysis</h2></div>
+        <div class="card-body">
+          <div class="map-link-card">
+            <div class="link-text">
+              <a id="surfaceLink" href="https://check-long-term-flood-risk.service.gov.uk/map?map=SurfaceWater" target="_blank">check-long-term-flood-risk.service.gov.uk ↗</a>
+              <small id="surfaceHint">Enter postcode in Step 1 to auto-position this map</small>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="window.open(document.getElementById('surfaceLink').href,'_blank')">🗺 Open Map</button>
+          </div>
+          <div class="info-box"><span class="info-box-icon">ℹ️</span>
+            <div>Open map (pre-positioned to postcode) · select <em>Surface Water</em> layer · zoom to site · <strong>paste with <kbd>Ctrl+V</kbd></strong> or upload · draw site boundary</div>
+          </div>
+          <div id="surfaceUpload" class="upload-area"
+               onclick="document.getElementById('surfaceFile').click()"
+               ondragover="dragOver(event,'surface')" ondragleave="dragLeave(event,'surface')" ondrop="dropOn(event,'surface')">
+            <input type="file" id="surfaceFile" accept="image/*" style="display:none" onchange="loadMapFile('surface',this)">
+            <div class="upload-icon">📷</div>
+            <div class="upload-title">Click to upload — or drag & drop</div>
+            <div class="upload-hint">PNG / JPG screenshot</div>
+            <div class="paste-badge">⌨️ Ctrl+V to paste</div>
+          </div>
+          <div id="surfaceCanvasArea" class="canvas-section hidden">
+            <div class="canvas-wrap"><canvas id="surfaceCanvas"></canvas></div>
+            <div class="canvas-toolbar">
+              <span class="canvas-hint">🖱 Click = add point &nbsp;·&nbsp; Dbl-click = finish &nbsp;·&nbsp; Right-click = undo</span>
+              <button class="btn btn-ghost btn-sm" onclick="resetPoly('surface')">↺ Reset</button>
+              <button class="btn btn-success btn-sm" onclick="finishPoly('surface')">✓ Finish Polygon</button>
+            </div>
+            <div id="surfaceResult" class="hidden"></div>
+          </div>
+        </div>
+      </div>
+      <div class="step-nav"><button class="btn btn-ghost" onclick="prevStep()">← Back</button><button class="btn btn-primary" onclick="nextStep()">Next: SW Depth →</button></div>
+    </div>
+
+    <!-- ══ STEP 3 – Depth ══ -->
+    <div id="step-3" class="step-content hidden">
+      <div class="card">
+        <div class="card-header"><span class="card-emoji">📏</span><h2>Surface Water Depth Map</h2></div>
+        <div class="card-body">
+          <div class="map-link-card">
+            <div class="link-text">
+              <a id="depthLink" href="https://check-long-term-flood-risk.service.gov.uk/map?map=SurfaceWater/depth" target="_blank">check-long-term-flood-risk.service.gov.uk (Depth) ↗</a>
+              <small id="depthHint">Enter postcode in Step 1 to auto-position this map</small>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="window.open(document.getElementById('depthLink').href,'_blank')">🗺 Open Map</button>
+          </div>
+          <div class="info-box"><span class="info-box-icon">ℹ️</span>
+            <div>On the Surface Water map, switch to the <em>Depth</em> radio · screenshot same area · <strong>paste with <kbd>Ctrl+V</kbd></strong> or upload below.<br>No polygon needed — image is inserted directly into the report.</div>
+          </div>
+          <div id="depthUpload" class="upload-area"
+               onclick="document.getElementById('depthFile').click()"
+               ondragover="dragOver(event,'depth')" ondragleave="dragLeave(event,'depth')" ondrop="dropOn(event,'depth')">
+            <input type="file" id="depthFile" accept="image/*" style="display:none" onchange="loadDepthFile(this)">
+            <div class="upload-icon">📷</div>
+            <div class="upload-title">Click to upload depth screenshot — or drag & drop</div>
+            <div class="upload-hint">PNG / JPG · No polygon needed</div>
+            <div class="paste-badge">⌨️ Ctrl+V to paste</div>
+          </div>
+          <div id="depthPreview" class="hidden" style="margin-top:14px">
+            <img id="depthImgPreview" alt="Depth map">
+            <p style="font-size:.82rem;color:var(--success);margin-top:8px">✓ Depth map loaded</p>
+          </div>
+        </div>
+      </div>
+      <div class="step-nav"><button class="btn btn-ghost" onclick="prevStep()">← Back</button><button class="btn btn-primary" onclick="nextStep()">Next: Reservoirs →</button></div>
+    </div>
+
+    <!-- ══ STEP 4 – Reservoirs ══ -->
+    <div id="step-4" class="step-content hidden">
+      <div class="card">
+        <div class="card-header"><span class="card-emoji">🏞️</span><h2>Reservoir Flood Analysis</h2></div>
+        <div class="card-body">
+          <div class="map-link-card">
+            <div class="link-text">
+              <a id="reservoirLink" href="https://check-long-term-flood-risk.service.gov.uk/map?map=Reservoirs" target="_blank">check-long-term-flood-risk.service.gov.uk (Reservoirs) ↗</a>
+              <small id="reservoirHint">Enter postcode in Step 1 to auto-position this map</small>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="window.open(document.getElementById('reservoirLink').href,'_blank')">🗺 Open Map</button>
+          </div>
+          <div class="info-box"><span class="info-box-icon">ℹ️</span>
+            <div>Open map (pre-positioned) · switch to Reservoir layer · screenshot · <strong>paste with <kbd>Ctrl+V</kbd></strong> or upload · draw site boundary</div>
+          </div>
+          <div id="reservoirUpload" class="upload-area"
+               onclick="document.getElementById('reservoirFile').click()"
+               ondragover="dragOver(event,'reservoir')" ondragleave="dragLeave(event,'reservoir')" ondrop="dropOn(event,'reservoir')">
+            <input type="file" id="reservoirFile" accept="image/*" style="display:none" onchange="loadMapFile('reservoir',this)">
+            <div class="upload-icon">📷</div>
+            <div class="upload-title">Click to upload — or drag & drop</div>
+            <div class="upload-hint">PNG / JPG screenshot</div>
+            <div class="paste-badge">⌨️ Ctrl+V to paste</div>
+          </div>
+          <div id="reservoirCanvasArea" class="canvas-section hidden">
+            <div class="canvas-wrap"><canvas id="reservoirCanvas"></canvas></div>
+            <div class="canvas-toolbar">
+              <span class="canvas-hint">🖱 Click = add point &nbsp;·&nbsp; Dbl-click = finish &nbsp;·&nbsp; Right-click = undo</span>
+              <button class="btn btn-ghost btn-sm" onclick="resetPoly('reservoir')">↺ Reset</button>
+              <button class="btn btn-success btn-sm" onclick="finishPoly('reservoir')">✓ Finish Polygon</button>
+            </div>
+            <div id="reservoirResult" class="hidden"></div>
+          </div>
+        </div>
+      </div>
+      <div class="step-nav"><button class="btn btn-ghost" onclick="prevStep()">← Back</button><button class="btn btn-primary" onclick="nextStep()">Next: Generate →</button></div>
+    </div>
+
+    <!-- ══ STEP 5 – Generate ══ -->
+    <div id="step-5" class="step-content hidden">
+      <div class="card">
+        <div class="card-header"><span class="card-emoji">📄</span><h2>Summary &amp; Report Generation</h2></div>
+        <div class="card-body">
+          <div id="summaryContent" style="margin-bottom:20px"></div>
+          <div id="templateUploadArea" class="upload-area"
+               onclick="document.getElementById('templateFile').click()"
+               ondragover="dragOver(event,'template')" ondragleave="dragLeave(event,'template')" ondrop="dropOn(event,'template')">
+            <input type="file" id="templateFile" accept=".docx" style="display:none" onchange="loadTemplate(this)">
+            <div class="upload-icon">📂</div>
+            <div class="upload-title">Upload FRA.docx Template</div>
+            <div class="upload-hint">.docx files only</div>
+          </div>
+          <div id="templateStatus" class="hidden" style="color:var(--success);font-size:.85rem;margin-top:8px">✓ Template loaded</div>
+          <div class="info-box warn" style="margin-top:16px">
+            <span class="info-box-icon">⚠️</span>
+            <div>
+              <strong>Expected placeholders in template:</strong><br>
+              <code>&lt;!--PROJECT_NAME--&gt;</code> &nbsp;<code>&lt;!--CLIENT_NAME--&gt;</code> &nbsp;<code>&lt;!--PROJECT_LOCATION--&gt;</code> &nbsp;<code>&lt;!--PROJECT_NUMBER--&gt;</code><br>
+              <code>&lt;!-- INSERT_FLOOD_ANALYSIS_HERE --&gt;</code><br>
+              <code>&lt;!-- INSERT_SURFACE_WATER_ANALYSIS_HERE --&gt;</code><br>
+              <code>&lt;!-- INSERT_RESERVOIRS_ANALYSIS_HERE --&gt;</code>
+            </div>
+          </div>
+          <div class="generate-btn-wrap">
+            <button class="btn btn-success btn-lg" onclick="generateReport()">🚀 Generate FRA Report</button>
+          </div>
+          <div class="gen-status" id="genStatus"></div>
+        </div>
+      </div>
+      <div class="step-nav"><button class="btn btn-ghost" onclick="prevStep()">← Back</button><div></div></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ════════════════════════════════════
+// STATE
+// ════════════════════════════════════
+let currentStep = 0;
+
+const state = {
+  fluvial:  { analysisText:'', origText:'', floodZone:null },
+  surface:  { analysisText:'', origText:'', risk:null },
+  depth:    { blob:null },
+  reservoir:{ analysisText:'', origText:'', risk:null },
+  template: null
+};
+
+const ds = {};
+['fluvial','surface','reservoir'].forEach(n=>{
+  ds[n] = { points:[], finished:false, img:null };
+});
+
+// step → paste target
+const stepTarget = { 1:'fluvial', 2:'surface', 3:'depth', 4:'reservoir' };
+
+// ════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════
+function goToStep(n){
+  document.getElementById(`step-${currentStep}`).classList.add('hidden');
+  currentStep = n;
+  document.getElementById(`step-${currentStep}`).classList.remove('hidden');
+  document.querySelectorAll('.step-btn').forEach((el,i)=>{
+    el.classList.toggle('active', i===n);
+  });
+  document.getElementById('progressFill').style.width=(n/5*100)+'%';
+  if(n===5) buildSummary();
+}
+function nextStep(){ if(currentStep<5) goToStep(currentStep+1); }
+function prevStep(){ if(currentStep>0) goToStep(currentStep-1); }
+function markDone(step){
+  document.getElementById(`nav-${step}`).classList.add('done');
+  document.getElementById(`icon-${step}`).textContent='✓';
+}
+
+// ════════════════════════════════════
+// POSTCODE → COORDS → LINKS
+// ════════════════════════════════════
+let pcTimer;
+function onPostcodeChange(val){
+  clearTimeout(pcTimer);
+  pcTimer = setTimeout(()=>resolvePostcode(val), 700);
+}
+async function resolvePostcode(pc){
+  pc = pc.trim().replace(/\s+/g,'');
+  if(pc.length<5) return;
+  const st=document.getElementById('pcStatus');
+  const pill=document.getElementById('coordPill');
+  st.className='pc-status loading visible';
+  st.textContent='⏳ Resolving…';
+  try{
+    const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`);
+    const data = await res.json();
+    if(!data.result) throw new Error('not found');
+    const {eastings:e, northings:n} = data.result;
+    const base='https://check-long-term-flood-risk.service.gov.uk/map';
+    document.getElementById('surfaceLink').href  =`${base}?easting=${e}&northing=${n}&map=SurfaceWater`;
+    document.getElementById('depthLink').href    =`${base}?easting=${e}&northing=${n}&map=SurfaceWater/depth`;
+    document.getElementById('reservoirLink').href=`${base}?easting=${e}&northing=${n}&map=Reservoirs`;
+    const positioned='✓ Pre-positioned to your postcode';
+    document.getElementById('surfaceHint').textContent=positioned;
+    document.getElementById('depthHint').textContent=positioned;
+    document.getElementById('reservoirHint').textContent=positioned;
+    st.className='pc-status ok visible';
+    st.textContent='✓ Postcode resolved';
+    pill.className='coord-pill visible';
+    document.getElementById('coordE').textContent='E: '+e;
+    document.getElementById('coordN').textContent='N: '+n;
+  }catch{
+    st.className='pc-status err visible';
+    st.textContent='✗ Postcode not found';
+    pill.className='coord-pill';
+  }
+}
+
+// ════════════════════════════════════
+// GLOBAL PASTE (Ctrl+V)
+// ════════════════════════════════════
+document.addEventListener('paste', ev=>{
+  const target = stepTarget[currentStep];
+  if(!target) return;
+  for(const item of (ev.clipboardData||window.clipboardData).items){
+    if(item.type.startsWith('image/')){
+      ev.preventDefault();
+      const blob = item.getAsFile();
+      if(!blob) return;
+      target==='depth' ? ingestDepth(blob) : ingestMap(target, blob);
+      return;
+    }
+  }
+});
+
+// ════════════════════════════════════
+// DRAG & DROP
+// ════════════════════════════════════
+function dragOver(ev,name){ ev.preventDefault(); document.getElementById(`${name==='template'?'templateUpload':name}Upload`+(name==='template'?'Area':'')).classList.add('drag-over'); }
+function dragLeave(ev,name){ (document.getElementById(`${name}Upload`)||document.getElementById(`${name}UploadArea`)).classList.remove('drag-over'); }
+function dropOn(ev,name){
+  ev.preventDefault();
+  const el = document.getElementById(`${name}Upload`) || document.getElementById(`${name}UploadArea`);
+  el.classList.remove('drag-over');
+  const file = ev.dataTransfer.files[0];
+  if(!file) return;
+  if(name==='depth') ingestDepth(file);
+  else if(name==='template'){ const fake={files:[file]}; loadTemplate(fake); }
+  else ingestMap(name,file);
+}
+
+// ════════════════════════════════════
+// IMAGE INGESTION
+// ════════════════════════════════════
+const MAX_W=820;
+
+function loadMapFile(name,input){ if(input.files[0]) ingestMap(name,input.files[0]); }
+function ingestMap(name,blob){
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      ds[name].img=img; ds[name].points=[]; ds[name].finished=false;
+      const up=document.getElementById(`${name}Upload`);
+      up.classList.add('uploaded');
+      up.querySelector('.upload-title').textContent='✓ Image loaded — draw your site boundary below';
+      document.getElementById(`${name}CanvasArea`).classList.remove('hidden');
+      document.getElementById(`${name}Result`).classList.add('hidden');
+      setupCanvas(name,img);
+    };
+    img.src=ev.target.result;
+  };
+  reader.readAsDataURL(blob);
+}
+
+function loadDepthFile(input){ if(input.files[0]) ingestDepth(input.files[0]); }
+function ingestDepth(blob){
+  state.depth.blob=blob;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    document.getElementById('depthUpload').classList.add('uploaded');
+    document.getElementById('depthUpload').querySelector('.upload-title').textContent='✓ Depth map loaded';
+    document.getElementById('depthPreview').classList.remove('hidden');
+    document.getElementById('depthImgPreview').src=ev.target.result;
+  };
+  reader.readAsDataURL(blob);
+  markDone(3);
+}
+
+// ════════════════════════════════════
+// CANVAS DRAWING
+// ════════════════════════════════════
+function setupCanvas(name,img){
+  const oldCanvas=document.getElementById(`${name}Canvas`);
+  const scale=Math.min(1,MAX_W/img.naturalWidth);
+  oldCanvas.width =Math.round(img.naturalWidth*scale);
+  oldCanvas.height=Math.round(img.naturalHeight*scale);
+
+  // clone to flush old listeners
+  const c=oldCanvas.cloneNode(true);
+  oldCanvas.parentNode.replaceChild(c,oldCanvas);
+
+  let lastClick=0;
+  c.addEventListener('click',ev=>{
+    if(ds[name].finished) return;
+    const now=Date.now(); if(now-lastClick<350) return; lastClick=now;
+    const r=c.getBoundingClientRect();
+    ds[name].points.push([ (ev.clientX-r.left)*(c.width/r.width), (ev.clientY-r.top)*(c.height/r.height) ]);
+    drawCanvas(name,c);
+  });
+  c.addEventListener('dblclick',()=>{ if(!ds[name].finished&&ds[name].points.length>=3) finishPoly(name); });
+  c.addEventListener('contextmenu',ev=>{ ev.preventDefault(); if(!ds[name].finished&&ds[name].points.length){ ds[name].points.pop(); drawCanvas(name,c); } });
+  c.addEventListener('touchend',ev=>{
+    ev.preventDefault();
+    if(ds[name].finished) return;
+    const t=ev.changedTouches[0], r=c.getBoundingClientRect();
+    ds[name].points.push([ (t.clientX-r.left)*(c.width/r.width), (t.clientY-r.top)*(c.height/r.height) ]);
+    drawCanvas(name,c);
+  },{passive:false});
+
+  drawCanvas(name,c);
+}
+
+function drawCanvas(name,c){
+  c=c||document.getElementById(`${name}Canvas`);
+  const ctx=c.getContext('2d'), d=ds[name];
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.drawImage(d.img,0,0,c.width,c.height);
+  if(!d.points.length) return;
+  ctx.save();
+  ctx.strokeStyle='#ff2222'; ctx.lineWidth=2.5; ctx.lineJoin='round';
+  if(d.finished){
+    ctx.fillStyle='rgba(255,30,30,.18)';
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(d.points[0][0],d.points[0][1]);
+    d.points.forEach(([x,y])=>ctx.lineTo(x,y));
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else {
+    ctx.setLineDash([6,5]);
+    ctx.beginPath(); ctx.moveTo(d.points[0][0],d.points[0][1]);
+    d.points.slice(1).forEach(([x,y])=>ctx.lineTo(x,y));
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  d.points.forEach(([x,y],i)=>{
+    ctx.beginPath(); ctx.arc(x,y,i===0?5:4,0,Math.PI*2);
+    ctx.fillStyle=i===0?'#ff8800':'#ff2222'; ctx.fill();
+    ctx.strokeStyle='white'; ctx.lineWidth=1.5; ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function resetPoly(name){
+  ds[name].points=[]; ds[name].finished=false;
+  drawCanvas(name);
+  document.getElementById(`${name}Result`).classList.add('hidden');
+}
+function finishPoly(name){
+  if(ds[name].points.length<3){ alert('Draw at least 3 points to define the site boundary.'); return; }
+  ds[name].finished=true; drawCanvas(name);
+  analyzeColors(name);
+  markDone({fluvial:1,surface:2,reservoir:4}[name]);
+}
+
+// ════════════════════════════════════
+// COLOR ANALYSIS
+// ════════════════════════════════════
+function pip(x,y,poly){
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const [xi,yi]=poly[i],[xj,yj]=poly[j];
+    if(((yi>y)!==(yj>y))&&x<(xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside;
+  }
+  return inside;
+}
+function hasColor(canvas,pts,target,tol=55){
+  const ctx=canvas.getContext('2d');
+  const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+  const minX=Math.max(0,Math.floor(Math.min(...xs))), maxX=Math.min(canvas.width,Math.ceil(Math.max(...xs)));
+  const minY=Math.max(0,Math.floor(Math.min(...ys))), maxY=Math.min(canvas.height,Math.ceil(Math.max(...ys)));
+  const w=maxX-minX,h=maxY-minY;
+  if(w<=0||h<=0) return false;
+  const px=ctx.getImageData(minX,minY,w,h).data;
+  let i=0;
+  for(let py=minY;py<maxY;py++) for(let qx=minX;qx<maxX;qx++,i+=4){
+    if(!pip(qx,py,pts)) continue;
+    if(Math.abs(px[i]-target[0])<=tol&&Math.abs(px[i+1]-target[1])<=tol&&Math.abs(px[i+2]-target[2])<=tol) return true;
+  }
+  return false;
+}
+
+function analyzeColors(name){
+  const canvas=document.getElementById(`${name}Canvas`);
+  const pts=ds[name].points;
+  let badge,heading,text;
+
+  if(name==='fluvial'){
+    const fz3=hasColor(canvas,pts,[29,112,184]);
+    const fz2=hasColor(canvas,pts,[0,48,120]);
+    const zone=fz3?'Flood Zone 3':fz2?'Flood Zone 2':'Flood Zone 1';
+    state.fluvial.floodZone=zone;
+    const cfg={
+      'Flood Zone 1':['low','Flood Zone 1 – Low Risk',
+        'According to the GOV.uk flood maps for planning, the site is located in Flood Zone 1, meaning it has less than a 0.1% (1-in-1,000-year) annual probability of river or sea flooding.\n\nThe Environment Agency (EA) flood map for planning is provided in Appendix C.\n\nTherefore, the risk of the development flooding from fluvial and tidal sources is considered low, and standard planning precautions are sufficient.'],
+      'Flood Zone 2':['medium','Flood Zone 2 – Moderate Risk',
+        'According to the GOV.uk flood maps for planning, the site is located in Flood Zone 2, meaning it has between a 0.1% and 1% (1-in-1,000 to 1-in-100-year) annual probability of river or sea flooding.\n\nThe Environment Agency (EA) flood map for planning is provided in Appendix C.\n\nTherefore, the risk of the development flooding from fluvial and tidal sources is considered moderate, and appropriate mitigation measures should be considered during the planning and design stages.'],
+      'Flood Zone 3':['high','Flood Zone 3 – High Risk',
+        'According to the GOV.uk flood maps for planning, the site is located in Flood Zone 3, meaning it has a 1% or greater (1-in-100-year or higher) annual probability of river or sea flooding.\n\nThe Environment Agency (EA) flood map for planning is provided in Appendix C.\n\nTherefore, the risk of the development flooding from fluvial and tidal sources is considered high, and careful consideration of flood risk management and mitigation measures is strongly recommended.'],
+    };
+    [badge,heading,text]=cfg[zone];
+    state.fluvial.analysisText=state.fluvial.origText=text;
+
+  }else if(name==='surface'){
+    const high=hasColor(canvas,pts,[85,92,157]);
+    const med =hasColor(canvas,pts,[154,160,222]);
+    const risk=high?'high':med?'medium':'low';
+    state.surface.risk=risk;
+    const prob={high:'more than 3.3%',medium:'between 1% and 3.3%',low:'between 0.1% and 1%'}[risk];
+    badge=risk;
+    heading=`${cap(risk)} Chance of Surface Water Flooding`;
+    text=`Surface water flooding occurs when intense rainfall is unable to soak into the ground or enter drainage systems, because of blockages or breakages in water pipes or where the drainage capacity has been exceeded. The extent of surface water flooding will depend upon the rainfall event, the degree of saturation of the soil, the permeability of soils and the topography of the site.\n\nA review of the GOV.uk surface water flood risk maps indicates that the site is at '${risk}' risk of surface water flooding between 2040 and 2060, with an annual probability of ${prob}.\n\nBased on this assessment, the risk of flooding from overland surface water flow is considered ${risk}.`;
+    state.surface.analysisText=state.surface.origText=text;
+
+  }else{
+    const med=hasColor(canvas,pts,[85,92,157]);
+    const risk=med?'medium':'low';
+    state.reservoir.risk=risk;
+    badge=risk;
+    heading=`${cap(risk)} Risk from Reservoir Failure`;
+    text=`Reservoirs are artificially created lakes that are usually formed by building a dam across a river. If one of the dams failed then water could escape from the reservoir, resulting in land or property being flooded.\n\nThe EA has mapped areas which could be subject to flooding in the event of reservoir failure. A review of the reservoir flood risk map indicated that the site is${risk==='medium'?'':' not'} located within a reservoir Flood Risk Zone (an area expected to flood if a local reservoir were to fail or be breached).\n\nFollowing a review of the relevant information, the risk of flooding from reservoir failure is considered to be ${risk}.`;
+    state.reservoir.analysisText=state.reservoir.origText=text;
+  }
+
+  const icons={low:'✅',medium:'⚠️',high:'🔴'};
+  const rd=document.getElementById(`${name}Result`);
+  rd.innerHTML=`
+  <div class="result-panel">
+    <div class="result-header result-${badge}">${icons[badge]} ${heading}</div>
+    <textarea class="result-textarea" id="${name}Textarea">${escHtml(text)}</textarea>
+    <div class="result-actions">
+      <button class="btn btn-teal btn-sm" id="${name}PolishBtn" onclick="polishText('${name}')">✨ Polish with AI</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetText('${name}')">↺ Reset to original</button>
+      <span id="${name}PolishStatus" class="polish-status" style="display:none"></span>
+    </div>
+  </div>`;
+  rd.classList.remove('hidden');
+
+  document.getElementById(`${name}Textarea`).addEventListener('input',function(){
+    state[name].analysisText=this.value;
+  });
+}
+
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ════════════════════════════════════
+// RESET TEXT
+// ════════════════════════════════════
+function resetText(name){
+  const orig=state[name].origText;
+  if(!orig) return;
+  document.getElementById(`${name}Textarea`).value=orig;
+  state[name].analysisText=orig;
+}
+
+// ════════════════════════════════════
+// AI POLISH
+// ════════════════════════════════════
+const sectionLabel={fluvial:'Fluvial/Tidal Flood Risk',surface:'Surface Water Flood Risk',reservoir:'Reservoir Flood Risk'};
+
+async function polishText(name){
+  const apiKey=document.getElementById('apiKey').value.trim();
+  if(!apiKey){ alert('Enter your Claude API key in the left sidebar to use AI polishing.'); return; }
+
+  const btn=document.getElementById(`${name}PolishBtn`);
+  const statusEl=document.getElementById(`${name}PolishStatus`);
+  btn.disabled=true;
+  statusEl.style.display='flex';
+  statusEl.innerHTML='<span class="spin">⟳</span>&nbsp;Polishing…';
+
+  const rawText=document.getElementById(`${name}Textarea`).value;
+
+  const prompt=`You are a senior flood risk engineer authoring a Flood Risk Assessment (FRA) for a UK planning application.
+
+Rewrite the following draft text for the "${sectionLabel[name]}" section as polished, formal technical prose suitable for submission to a Local Planning Authority.
+
+Requirements:
+- Keep ALL factual data: flood zones, risk levels, probability figures, regulatory references (EA, GOV.uk, Appendix references)
+- Use formal third-person register throughout
+- Improve sentence variety, coherence and professional tone
+- Remove redundancy without losing detail
+- Do NOT introduce new facts, change risk conclusions, or alter quantitative figures
+- Return ONLY the rewritten paragraphs — no preamble, no headings, no explanation
+
+Draft:
+${rawText}`;
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    const data=await res.json();
+    if(data.error) throw new Error(data.error.message);
+    const polished=data.content.filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+    document.getElementById(`${name}Textarea`).value=polished;
+    state[name].analysisText=polished;
+    statusEl.innerHTML='✓ Polished!';
+    setTimeout(()=>{ statusEl.style.display='none'; statusEl.innerHTML=''; },3000);
+  }catch(err){
+    statusEl.innerHTML=`<span style="color:var(--danger)">✗ ${err.message}</span>`;
+  }
+  btn.disabled=false;
+}
+
+// ════════════════════════════════════
+// TEMPLATE
+// ════════════════════════════════════
+function loadTemplate(input){
+  const file=(input.files&&input.files[0])||input[0];
+  if(!file) return;
+  state.template=file;
+  const up=document.getElementById('templateUploadArea');
+  up.classList.add('uploaded');
+  up.querySelector('.upload-title').textContent='✓ '+file.name;
+  document.getElementById('templateStatus').classList.remove('hidden');
+}
+
+// ════════════════════════════════════
+// SUMMARY
+// ════════════════════════════════════
+function buildSummary(){
+  const rows=[
+    ['Project',      document.getElementById('projectName').value||'—'],
+    ['Client',       document.getElementById('clientName').value||'—'],
+    ['Location',     document.getElementById('projectLocation').value||'—'],
+    ['Postcode',     document.getElementById('postcode').value||'—'],
+    ['Fluvial/Tidal',state.fluvial.floodZone||'⚠ Not yet analysed'],
+    ['Surface Water',state.surface.risk?cap(state.surface.risk)+' risk':'⚠ Not yet analysed'],
+    ['Depth Map',    state.depth.blob?'✓ Uploaded':'⚠ Not uploaded'],
+    ['Reservoirs',   state.reservoir.risk?cap(state.reservoir.risk)+' risk':'⚠ Not yet analysed'],
+  ];
+  document.getElementById('summaryContent').innerHTML=
+    rows.map(([l,v])=>`<div class="summary-row"><span class="summary-label">${l}</span><span>${v}</span></div>`).join('');
+}
+
+// ════════════════════════════════════
+// DOCX GENERATION
+// ════════════════════════════════════
+function xmlEsc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
+
+function buildParas(text){
+  return text.split(/\n\n|\n/).filter(l=>l.trim()).map(l=>
+    `<w:p><w:pPr><w:jc w:val="both"/></w:pPr><w:r><w:t xml:space="preserve">${xmlEsc(l.trim())}</w:t></w:r></w:p>`
+  ).join('');
+}
+
+function buildImgXml(rId,picId,cx,cy){
+  return `<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing>
+<wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0">
+<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>
+<wp:docPr id="${picId}" name="Pic${picId}"/>
+<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>
+<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+<pic:nvPicPr><pic:cNvPr id="${picId}" name="Pic${picId}"/><pic:cNvPicPr><a:picLocks noChangeAspect="1"/></pic:cNvPicPr></pic:nvPicPr>
+<pic:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${rId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+}
+
+function getImgSz(blob){ return new Promise(r=>{ const u=URL.createObjectURL(blob),i=new Image(); i.onload=()=>{r({w:i.naturalWidth,h:i.naturalHeight});URL.revokeObjectURL(u)}; i.src=u; }); }
+function canvasBlob(name){ return new Promise(r=>document.getElementById(`${name}Canvas`).toBlob(r,'image/png')); }
+
+function replacePlaceholders(xml,map){
+  for(const [ph,val] of Object.entries(map)){
+    const enc=ph.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    xml=xml.split(enc).join(xmlEsc(val)).split(ph).join(xmlEsc(val));
+  }
+  return xml;
+}
+function replaceSection(xml,key,replXml){
+  return xml.replace(/<w:p[ >][\s\S]*?<\/w:p>/g,p=>{
+    const t=(p.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)||[]).map(x=>x.replace(/<[^>]*>/g,'')).join('');
+    return t.includes(key)?replXml:p;
+  });
+}
+
+async function generateReport(){
+  if(!state.template){ alert('Upload the FRA.docx template first.'); return; }
+  const st=document.getElementById('genStatus');
+  st.innerHTML='<span style="color:var(--teal)">⏳ Building report…</span>';
+  try{
+    const zip=await JSZip.loadAsync(await state.template.arrayBuffer());
+    let docXml =await zip.file('word/document.xml').async('string');
+    let relsXml=await zip.file('word/_rels/document.xml.rels').async('string');
+
+    // 1. Text placeholders
+    const info={
+      '<!--PROJECT_NAME-->'    :document.getElementById('projectName').value,
+      '<!--CLIENT_NAME-->'     :document.getElementById('clientName').value,
+      '<!--PROJECT_LOCATION-->':document.getElementById('projectLocation').value,
+      '<!--PROJECT_NUMBER-->'  :document.getElementById('projectNumber').value,
+    };
+    docXml=replacePlaceholders(docXml,info);
+    for(const hf of Object.keys(zip.files).filter(f=>/^word\/(header|footer)\d*\.xml$/.test(f))){
+      zip.file(hf, replacePlaceholders(await zip.file(hf).async('string'),info));
+    }
+
+    // 2. Image helper
+    let ic=200;
+    async function addImg(blob,xml){
+      if(!blob) return xml;
+      const rId=`rId${ic}`,fname=`image${ic}.png`; ic++;
+      zip.file(`word/media/${fname}`,await blob.arrayBuffer());
+      relsXml=relsXml.replace('</Relationships>',
+        `<Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${fname}"/></Relationships>`);
+      const {w,h}=await getImgSz(blob);
+      const cx=Math.round(5.5*914400), cy=Math.round(cx*h/w);
+      return xml+buildImgXml(rId,ic-1,cx,cy);
+    }
+
+    // 3. Insert sections
+    if(state.fluvial.analysisText){
+      docXml=replaceSection(docXml,'INSERT_FLOOD_ANALYSIS_HERE',
+        await addImg(await canvasBlob('fluvial'), buildParas(state.fluvial.analysisText)));
+    }
+    if(state.surface.analysisText){
+      let xml=await addImg(await canvasBlob('surface'), buildParas(state.surface.analysisText));
+      if(state.depth.blob) xml=await addImg(state.depth.blob,xml);
+      docXml=replaceSection(docXml,'INSERT_SURFACE_WATER_ANALYSIS_HERE',xml);
+    }
+    if(state.reservoir.analysisText){
+      docXml=replaceSection(docXml,'INSERT_RESERVOIRS_ANALYSIS_HERE',
+        await addImg(await canvasBlob('reservoir'), buildParas(state.reservoir.analysisText)));
+    }
+
+    zip.file('word/document.xml',docXml);
+    zip.file('word/_rels/document.xml.rels',relsXml);
+
+    const out=await zip.generateAsync({type:'blob',compression:'DEFLATE'});
+    const pc=document.getElementById('postcode').value.trim().replace(/\s/g,'')||'output';
+    const fname=`FRA_Report_${pc}.docx`;
+    const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(out),download:fname});
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+
+    st.innerHTML=`<span style="color:var(--success)">✅ Downloaded: <strong>${fname}</strong></span>`;
+    markDone(5);
+  }catch(err){
+    console.error(err);
+    st.innerHTML=`<span style="color:var(--danger)">❌ ${err.message}<br><small>Check browser console</small></span>`;
+  }
+}
+</script>
+</body>
+</html>
