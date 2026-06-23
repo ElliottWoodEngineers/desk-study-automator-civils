@@ -332,27 +332,8 @@ kbd{font-family:'DM Mono',monospace;font-size:.78rem;padding:1px 5px;background:
         <div class="card-header"><span class="card-emoji">📄</span><h2>Summary &amp; Report Generation</h2></div>
         <div class="card-body">
           <div id="summaryContent" style="margin-bottom:20px"></div>
-          <div id="templateUploadArea" class="upload-area"
-               onclick="document.getElementById('templateFile').click()"
-               ondragover="dragOver(event,'template')" ondragleave="dragLeave(event,'template')" ondrop="dropOn(event,'template')">
-            <input type="file" id="templateFile" accept=".docx" style="display:none" onchange="loadTemplate(this)">
-            <div class="upload-icon">📂</div>
-            <div class="upload-title">Upload FRA.docx Template</div>
-            <div class="upload-hint">.docx files only</div>
-          </div>
-          <div id="templateStatus" class="hidden" style="color:var(--success);font-size:.85rem;margin-top:8px">✓ Template loaded</div>
-          <div class="info-box warn" style="margin-top:16px">
-            <span class="info-box-icon">⚠️</span>
-            <div>
-              <strong>Expected placeholders in template:</strong><br>
-              <code>&lt;!--PROJECT_NAME--&gt;</code> &nbsp;<code>&lt;!--CLIENT_NAME--&gt;</code> &nbsp;<code>&lt;!--PROJECT_LOCATION--&gt;</code> &nbsp;<code>&lt;!--PROJECT_NUMBER--&gt;</code><br>
-              <code>&lt;!-- INSERT_FLOOD_ANALYSIS_HERE --&gt;</code><br>
-              <code>&lt;!-- INSERT_SURFACE_WATER_ANALYSIS_HERE --&gt;</code><br>
-              <code>&lt;!-- INSERT_RESERVOIRS_ANALYSIS_HERE --&gt;</code>
-            </div>
-          </div>
           <div class="generate-btn-wrap">
-            <button class="btn btn-success btn-lg" onclick="generateReport()">🚀 Generate FRA Report</button>
+            <button id="generateBtn" class="btn btn-success btn-lg" onclick="generateReport()">🚀 Generate FRA Report</button>
           </div>
           <div class="gen-status" id="genStatus"></div>
         </div>
@@ -368,12 +349,13 @@ kbd{font-family:'DM Mono',monospace;font-size:.78rem;padding:1px 5px;background:
 // ════════════════════════════════════
 let currentStep = 0;
 
+const TEMPLATE_B64 = '%%TEMPLATE_B64%%';
+
 const state = {
   fluvial:  { analysisText:'', origText:'', floodZone:null },
   surface:  { analysisText:'', origText:'', risk:null },
   depth:    { blob:null },
   reservoir:{ analysisText:'', origText:'', risk:null },
-  template: null
 };
 
 const ds = {};
@@ -584,7 +566,13 @@ function resetPoly(name){
   document.getElementById(`${name}Result`).classList.add('hidden');
 }
 function finishPoly(name){
-  if(ds[name].points.length<3){ alert('Draw at least 3 points to define the site boundary.'); return; }
+  if(ds[name].points.length<3){
+    const hint=document.querySelector(`#${name}CanvasArea .canvas-hint`);
+    const orig=hint.textContent;
+    hint.style.color='var(--danger)'; hint.textContent='⚠ Draw at least 3 points first';
+    setTimeout(()=>{ hint.style.color=''; hint.textContent=orig; },3000);
+    return;
+  }
   ds[name].finished=true; drawCanvas(name);
   analyzeColors(name);
   markDone({fluvial:1,surface:2,reservoir:4}[name]);
@@ -698,7 +686,7 @@ const sectionLabel={fluvial:'Fluvial/Tidal Flood Risk',surface:'Surface Water Fl
 
 async function polishText(name){
   const apiKey=document.getElementById('apiKey').value.trim();
-  if(!apiKey){ alert('Enter your Claude API key in the left sidebar to use AI polishing.'); return; }
+  if(!apiKey){ statusEl.style.display='flex'; statusEl.innerHTML='<span style="color:var(--danger)">✗ Enter your Claude API key in the sidebar first</span>'; return; }
 
   const btn=document.getElementById(`${name}PolishBtn`);
   const statusEl=document.getElementById(`${name}PolishStatus`);
@@ -751,18 +739,7 @@ ${rawText}`;
   btn.disabled=false;
 }
 
-// ════════════════════════════════════
-// TEMPLATE
-// ════════════════════════════════════
-function loadTemplate(input){
-  const file=(input.files&&input.files[0])||input[0];
-  if(!file) return;
-  state.template=file;
-  const up=document.getElementById('templateUploadArea');
-  up.classList.add('uploaded');
-  up.querySelector('.upload-title').textContent='✓ '+file.name;
-  document.getElementById('templateStatus').classList.remove('hidden');
-}
+
 
 // ════════════════════════════════════
 // SUMMARY
@@ -826,11 +803,15 @@ function replaceSection(xml,key,replXml){
 }
 
 async function generateReport(){
-  if(!state.template){ alert('Upload the FRA.docx template first.'); return; }
+  const btn=document.getElementById('generateBtn');
   const st=document.getElementById('genStatus');
-  st.innerHTML='<span style="color:var(--teal)">⏳ Building report…</span>';
+  if(!TEMPLATE_B64 || TEMPLATE_B64==='%%TEMPLATE_B64%%'){ st.innerHTML='<span style="color:var(--danger)">❌ Template not loaded — please restart the VIKTOR app server.</span>'; return; }
+  btn.disabled=true; btn.textContent='⏳ Building report…';
+  st.innerHTML='';
   try{
-    const zip=await JSZip.loadAsync(await state.template.arrayBuffer());
+    const raw=atob(TEMPLATE_B64),bytes=new Uint8Array(raw.length);
+    for(let i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
+    const zip=await JSZip.loadAsync(bytes.buffer);
     let docXml =await zip.file('word/document.xml').async('string');
     let relsXml=await zip.file('word/_rels/document.xml.rels').async('string');
 
@@ -877,16 +858,19 @@ async function generateReport(){
     zip.file('word/document.xml',docXml);
     zip.file('word/_rels/document.xml.rels',relsXml);
 
-    const out=await zip.generateAsync({type:'blob',compression:'DEFLATE'});
     const pc=document.getElementById('postcode').value.trim().replace(/\s/g,'')||'output';
     const fname=`FRA_Report_${pc}.docx`;
-    const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(out),download:fname});
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
-
+    const out=await zip.generateAsync({type:'base64',compression:'DEFLATE'});
+    const mime='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const dataUri=`data:${mime};base64,${out}`;
+    const a=Object.assign(document.createElement('a'),{href:dataUri,download:fname});
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    btn.disabled=false; btn.textContent='🚀 Generate FRA Report';
     st.innerHTML=`<span style="color:var(--success)">✅ Downloaded: <strong>${fname}</strong></span>`;
     markDone(5);
   }catch(err){
     console.error(err);
+    btn.disabled=false; btn.textContent='🚀 Generate FRA Report';
     st.innerHTML=`<span style="color:var(--danger)">❌ ${err.message}<br><small>Check browser console</small></span>`;
   }
 }

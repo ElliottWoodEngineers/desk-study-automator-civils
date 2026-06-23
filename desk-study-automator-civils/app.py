@@ -1,5 +1,6 @@
 import viktor as vkt
 from pathlib import Path
+import base64
 
 
 class Parametrization(vkt.Parametrization):
@@ -12,4 +13,10 @@ class Controller(vkt.Controller):
     @vkt.WebView('FRA Generator')
     def get_web_view(self, params, **kwargs):
         html_path = Path(__file__).parent / 'files' / 'FRA_Generator.html'
-        return vkt.WebResult.from_path(html_path)
+        docx_path = Path(__file__).parent / 'files' / 'FRA.docx'
+
+        html_content = html_path.read_text(encoding='utf-8')
+        docx_b64 = base64.b64encode(docx_path.read_bytes()).decode('ascii')
+        html_content = html_content.replace('%%TEMPLATE_B64%%', docx_b64, 1)
+
+        return vkt.WebResult(html=vkt.File.from_data(html_content.encode('utf-8')))
