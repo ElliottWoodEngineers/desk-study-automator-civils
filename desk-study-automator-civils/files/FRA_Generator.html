@@ -136,12 +136,6 @@ kbd{font-family:'DM Mono',monospace;font-size:.78rem;padding:1px 5px;background:
     <button class="step-btn" id="nav-3" onclick="goToStep(3)"><span class="step-icon" id="icon-3">4</span> SW Depth Map</button>
     <button class="step-btn" id="nav-4" onclick="goToStep(4)"><span class="step-icon" id="icon-4">5</span> Reservoirs</button>
     <button class="step-btn" id="nav-5" onclick="goToStep(5)"><span class="step-icon" id="icon-5">6</span> Generate</button>
-
-    <div class="api-key-section">
-      <label>Claude API Key</label>
-      <input class="api-key-input" type="password" id="apiKey" placeholder="sk-ant-api03-…">
-      <span class="api-key-hint">Required for ✨ AI text polishing.<br>Key stays in your browser only.</span>
-    </div>
   </nav>
 
   <main class="main">
@@ -350,6 +344,7 @@ kbd{font-family:'DM Mono',monospace;font-size:.78rem;padding:1px 5px;background:
 let currentStep = 0;
 
 const TEMPLATE_B64 = '%%TEMPLATE_B64%%';
+const ANTHROPIC_API_KEY = '%%ANTHROPIC_API_KEY%%';
 
 const state = {
   fluvial:  { analysisText:'', origText:'', floodZone:null },
@@ -685,8 +680,12 @@ function resetText(name){
 const sectionLabel={fluvial:'Fluvial/Tidal Flood Risk',surface:'Surface Water Flood Risk',reservoir:'Reservoir Flood Risk'};
 
 async function polishText(name){
-  const apiKey=document.getElementById('apiKey').value.trim();
-  if(!apiKey){ statusEl.style.display='flex'; statusEl.innerHTML='<span style="color:var(--danger)">✗ Enter your Claude API key in the sidebar first</span>'; return; }
+  if(!ANTHROPIC_API_KEY){ 
+    const statusEl=document.getElementById(`${name}PolishStatus`);
+    statusEl.style.display='flex';
+    statusEl.innerHTML='<span style="color:var(--danger)">✗ ANTHROPIC_API_KEY environment variable not set</span>';
+    return;
+  }
 
   const btn=document.getElementById(`${name}PolishBtn`);
   const statusEl=document.getElementById(`${name}PolishStatus`);
@@ -716,7 +715,7 @@ ${rawText}`;
       method:'POST',
       headers:{
         'Content-Type':'application/json',
-        'x-api-key':apiKey,
+        'x-api-key':ANTHROPIC_API_KEY,
         'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true'
       },

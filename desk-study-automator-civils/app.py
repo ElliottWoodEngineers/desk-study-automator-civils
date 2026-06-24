@@ -1,6 +1,7 @@
 import viktor as vkt
 from pathlib import Path
 import base64
+import os
 
 
 class Parametrization(vkt.Parametrization):
@@ -18,5 +19,9 @@ class Controller(vkt.Controller):
         html_content = html_path.read_text(encoding='utf-8')
         docx_b64 = base64.b64encode(docx_path.read_bytes()).decode('ascii')
         html_content = html_content.replace('%%TEMPLATE_B64%%', docx_b64, 1)
+        
+        # Inject Anthropic API key from environment variable
+        anthropic_api_key = os.getenv('ANTHROPIC_API_KEY', '')
+        html_content = html_content.replace('%%ANTHROPIC_API_KEY%%', anthropic_api_key)
 
         return vkt.WebResult(html=vkt.File.from_data(html_content.encode('utf-8')))
