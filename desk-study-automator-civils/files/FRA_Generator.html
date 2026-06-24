@@ -172,7 +172,7 @@ kbd{font-family:'DM Mono',monospace;font-size:.78rem;padding:1px 5px;background:
           <div class="map-link-card">
             <div class="link-text">
               <a id="fluvialLink" href="https://flood-map-for-planning.service.gov.uk/map" target="_blank">flood-map-for-planning.service.gov.uk ↗</a>
-              <small>Search postcode → zoom to site → close legend (×) → screenshot</small>
+              <small>Search postcode → close legend (×) → screenshot</small>
             </div>
             <button class="btn btn-ghost btn-sm" onclick="window.open(document.getElementById('fluvialLink').href,'_blank')">🗺 Open Map</button>
           </div>
@@ -402,6 +402,7 @@ async function resolvePostcode(pc){
     if(!data.result) throw new Error('not found');
     const {eastings:e, northings:n} = data.result;
     const base='https://check-long-term-flood-risk.service.gov.uk/map';
+    document.getElementById('fluvialLink').href  =`https://flood-map-for-planning.service.gov.uk/map?cz=${e},${n},18`;
     document.getElementById('surfaceLink').href  =`${base}?easting=${e}&northing=${n}&map=SurfaceWater`;
     document.getElementById('depthLink').href    =`${base}?easting=${e}&northing=${n}&map=SurfaceWater/depth`;
     document.getElementById('reservoirLink').href=`${base}?easting=${e}&northing=${n}&map=Reservoirs`;
